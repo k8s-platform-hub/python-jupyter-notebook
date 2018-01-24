@@ -1,9 +1,9 @@
-# scipy-jupyter-notebook
+# python-jupyter-notebook
 
 This quickstart consists of one microservice:
 
 
-jupyter: Runs [Jupyter](https://jupyter.org/) IPython notebook with scipy (and other data analysis libraries) installed for building, analysing and visualising models interactively.
+jupyter: Runs [Jupyter](https://jupyter.org/) base python notebook with few additional packages. Also, authentication is integrated via Hasura Auth.
 
 Follow along below to get the setup working on your cluster.
 
@@ -33,25 +33,29 @@ $ git --version
 
 ```sh
 $ # Run the quickstart command to get the project
-$ hasura quickstart hasura/scipy-jupyter-notebook
+$ hasura quickstart hasura/python-jupyter-notebook
 
 $ # Navigate into the Project
-$ cd scipy-jupyter-notebook
+$ cd python-jupyter-notebook
 ```
-## Deploy app
+
+## Deploy notebook
+
+You can deploy the notebook by following the instructions below: 
+
 
 ```sh
-$ # Ensure that you are in the scipy-jupyter-notebook directory
+$ # Ensure that you are in the python-jupyter-notebook directory
 $ # Git add, commit & push to deploy to your cluster
 $ git add .
 $ git commit -m 'First commit'
 $ git push hasura master
 ```
 
-Once the above commands complete successfully, your cluster will have `jupyter` service  running. To get their URLs
+Once the above commands complete successfully, your cluster will have `jupyter` service  running with a dedicated (HTTPS) endpoint. To get their URLs
 
 ```sh
-$ # Run this in the scipy-jupyter-notebook directory
+$ # Run this in the python-jupyter-notebook directory
 $ hasura microservice list
 ```
 
@@ -77,18 +81,47 @@ sshd            Running   sshd.hasura
 
 You can access the services at the `EXTERNAL-URL` for the respective service.
 
-## Exploring Jupyter
+## Customise notebook
 
-### Open the Jupyter service
-
-Head over to the EXTERNAL-URL of your `jupyter` service.
-
-![Jupyter 1](https://raw.githubusercontent.com/hasura/scipy-jupyter-notebook/master/assets/jupyter_login.png "Jupyter 1")
-
-### Authentication
+This notebook is a base python notebook. You may need to add additional packages to the notebook. Although it is possible to do this inside the notebook, it is more convenient to package your notebook with required packages. To do this, simply customise the `Dockerfile` present in `microservices/jupyter` folder.
 
 ```sh
-$ # Run this in the scipy-jupyter-notebook directory
+$ #Ensure that you are in the python-jupyter-notebook directory
+$ vim microservices/jupyter/Dockerfile
+$ cat microservices/jupyter/Dockerfile
+
+FROM jupyter/base-notebook
+
+#Use conda to install packages
+RUN conda install -y pandas
+
+#Use pip to install packages
+RUN pip install matplotlib
+.
+.
+.
+
+``` 
+
+
+
+## Share notebook with authentication
+
+There are 2 ways to enable authentication in your Jupyter notebook: 1) Using Jupyter token/password, 2) Using Hasura Auth
+
+### 1) Using Jupyter token-based authentication
+
+This is the authentication mode which comes with Jupyter notebook by default.
+
+Head over to the EXTERNAL-URL of your `jupyter` service. You will find the following page:
+
+![Jupyter Login](https://raw.githubusercontent.com/hasura/python-jupyter-notebook/master/assets/jupyter_login.png "Jupyter Login")
+
+To get the authentication token, follow the below instructions:
+
+
+```sh
+$ # Run this in the python-jupyter-notebook directory
 $ hasura ms logs jupyter
 ```
 
@@ -113,5 +146,44 @@ Executing the command: jupyter notebook
 
 ```
 
-Start creating notebooks and showcase your work to the world!
+To collaborate with other users, you will need to share this token with them.
+
+### 2) Using Hasura Auth
+
+The aforementioned authentication method works fine if you are an individual contributor or collaborate with a small team. If you have a large team or if your notebook needs more sophisticated access control, then you can integrate your notebook with Hasura Auth for better identity management.
+
+To do this, first enable authorisation policy to the `jupyter` service:
+
+```sh
+# Add authorizationPolicy to jupyter subsection in conf/routes.yaml
+
+jupyter:
+  /:
+    corsPolicy: allow_all
+    upstreamService:
+      name: jupyter
+      namespace: '{{ cluster.metadata.namespaces.user }}'
+    upstreamServicePath: /
+    upstreamServicePort: 80
+    enableWebsockets: true
+    authorizationPolicy:
+      restrictToRoles: ["user"]
+      noSessionRedirectUrl: https://auth.{{ cluster.name }}.hasura-app.io/ui/
+
+```
+
+The authorisation policy above restricts the service to sessions with role "user" and redirects to a login page if such a session does not exist. You can use the Auth UI kit for a default `noSessionRedirectUrl`.
+
+![Auth UI](https://raw.githubusercontent.com/hasura/python-jupyter-notebook/master/assets/auth.png "Auth UI")
+
+## Persist data
+
+When you open and authenticate the `jupyter` service, you will find a `work` directory. This directory can be used for persisting notebooks and files. 
+
+Additionally, you can use Hasura Data service to load/fetch data from relational tables or Hasura File service to expose links to files to external users.
+
+![Data Service](https://raw.githubusercontent.com/hasura/python-jupyter-notebook/master/assets/data-store.png "Data Service")
+
+Have fun creating notebooks on Hasura!
+
 
