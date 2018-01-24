@@ -171,6 +171,6 @@ jupyter:
     upstreamServicePath: /
     upstreamServicePort: 80
     enableWebsockets: true
-
-
-
+    authorizationPolicy:
+      restrictToRoles: ["user"]
+      noSessionRedirectUrl: https://auth.{{ cluster.name }}.hasura-app.io/ui/
